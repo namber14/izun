@@ -50,6 +50,7 @@
     if (root.querySelector('[name="city"]')) fields.push({ id: 'city', type: 'select' });
     if (root.querySelector('[name="waitHours"]')) fields.push({ id: 'waitHours', type: 'pills', options: [[6]] });
     const v = S.readFields(root, fields);
+    S.freezePast();
     const flipped = v.keeps !== h.shabbat, waited = 'waitHours' in v && +v.waitHours !== (h.waitHours === 5.5 ? 5 : h.waitHours);
     h.shabbat = h.kosher = v.keeps;
     h.extra = Math.max(0, v.extra || 0);
@@ -58,10 +59,14 @@
     if (flipped) {
       for (const id of ['a', 'b']) { if (v.keeps) S.P(id).fit.days = S.P(id).fit.days.filter(d => d !== 6); S.rebuild(id); }
     }
-    if (flipped || waited) {
+    if (flipped) {
+      // ימים שכבר עברו נשארים כפי שהיו. מהיום והלאה נבנה תפריט חדש.
       const wk = S.weekKey(S.today());
       for (const w of [wk, S.addDays(wk, 7)]) if (S.state.menu[w]) S.genWeek(w, true);
       S.toast('נשמר. התפריט וסדר היום נבנו מחדש.');
+    } else if (waited) {
+      const n = S.kosherFix();
+      S.toast(n ? `נשמר. ${n === 1 ? 'מנה אחת הוחלפה' : n + ' מנות הוחלפו'} לפי זמן ההמתנה החדש.` : 'נשמר');
     } else S.toast('נשמר');
     S.save(); S.soft();
   };
@@ -97,36 +102,38 @@
   // ---------- תזכורות ליומן ----------
   const BY = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
   S.act.ics = () => {
-    const p = S.P(S.me), today = S.today();
+    const p = S.P(S.me), today = S.today(), W = S.t2m(p.wake);
     const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z';
+    const escText = t => String(t).replace(/\\/g, '\\\\').replace(/([,;])/g, '\\$1').replace(/\r?\n/g, '\\n');
+    // בבית ששומר שבת: עוגן של יום שישי נכנס ליומן רק אם הוא לפני כניסת השבת המוקדמת ביותר בשנה
+    let earliest = Infinity;
+    if (S.keepsShabbat()) { let fri = today; while (S.dow(fri) !== 5) fri = S.addDays(fri, 1); for (let i = 0; i < 53; i++) earliest = Math.min(earliest, S.candles(S.addDays(fri, i * 7)) - 60); }
     const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//izun//he', 'CALSCALE:GREGORIAN', 'X-WR-CALNAME:איזון'];
     for (const b of p.blocks) {
-      if (b.k === 'work' || !b.d.length) continue;
-      let sm = S.t2m(b.s), shift = 0;
-      if (sm < S.t2m(p.wake) - 60 && ['sleep', 'wind', 'couple'].includes(b.k)) shift = 1; // אחרי חצות: היום שלמחרת ביומן
-      const days = b.d.map(d => (d + shift) % 7);
+      if (b.k === 'work') continue;
+      const sm = S.t2m(b.s);
+      // אותו כלל כמו בציר: עוגן של סוף היום שהשעה שלו אחרי חצות שייך ביומן ליום שלמחרת
+      const shift = sm < W - 60 && ['sleep', 'wind', 'couple', 'home', 'study', 'other'].includes(b.k) ? 1 : 0;
+      const days = b.d.filter(d => !(d === 5 && !shift && sm >= earliest)).map(d => (d + shift) % 7);
+      if (!days.length) continue;
       let k = today;
       for (let i = 0; i < 7 && !days.includes(S.dow(k)); i++) k = S.addDays(k, 1);
       const dt = `${k.replace(/-/g, '')}T${pad(Math.floor(sm / 60))}${pad(sm % 60)}00`;
       const dur = b.k === 'sleep' || b.k === 'wake' ? 5 : Math.max(5, Math.min(b.m, 180));
-      lines.push('BEGIN:VEVENT', `UID:${b.id}@izun`, `DTSTAMP:${stamp}`, `DTSTART:${dt}`, `DURATION:PT${dur}M`, `RRULE:FREQ=WEEKLY;BYDAY=${days.map(d => BY[d]).join(',')}`, `SUMMARY:${b.t}`, 'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${b.t}`, 'TRIGGER:PT0M', 'END:VALARM', 'END:VEVENT');
+      lines.push('BEGIN:VEVENT', `UID:${S.me}-${b.id}@izun`, `DTSTAMP:${stamp}`, `DTSTART:${dt}`, `DURATION:PT${dur}M`, `RRULE:FREQ=WEEKLY;BYDAY=${days.map(d => BY[d]).join(',')}`, `SUMMARY:${escText(b.t)}`, 'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${escText(b.t)}`, 'TRIGGER:PT0M', 'END:VALARM', 'END:VEVENT');
     }
     lines.push('END:VCALENDAR');
-    S.download('izun-seder-yom.ics', lines.join('\r\n'), 'text/calendar;charset=utf-8');
-    S.toast('הקובץ ירד. פותחים אותו ומאשרים הוספה ליומן.');
+    const text = lines.join('\r\n');
+    // באפליקציה שעל מסך הבית משתפים את הקובץ. בדפדפן רגיל הורדה פותחת את "הוספה ליומן".
+    if (S.isInstalled()) S.shareFile('izun-seder-yom.ics', text, 'text/calendar', 'סדר היום של איזון');
+    else S.download('izun-seder-yom.ics', text, 'text/calendar;charset=utf-8');
+    S.toast('פותחים את הקובץ ומאשרים הוספה ליומן.');
   };
 
   // ---------- גיבוי ----------
   S.act.backup = () => {
     S.saveNow();
-    const text = JSON.stringify(S.state);
-    const name = `izun-gibuy-${S.today()}.json`;
-    try {
-      const file = new File([text], name, { type: 'application/json' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) { navigator.share({ files: [file], title: 'גיבוי איזון' }).catch(() => {}); return; }
-    } catch { /* אין שיתוף קבצים: מורידים */ }
-    S.download(name, text, 'application/json');
-    S.toast('הגיבוי ירד למכשיר');
+    if (S.shareFile(`izun-gibuy-${S.today()}.json`, JSON.stringify(S.state), 'application/json', 'גיבוי איזון') === 'download') S.toast('הגיבוי ירד למכשיר');
   };
   S.act.csv = () => {
     const cell = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -138,8 +145,9 @@
       const sc = S.score(k, id), d = S.state.days[k][id];
       rows.push([k, S.DAYS[S.dow(k)], S.name(id), sc.shabbat ? '' : Math.round(sc.all * 100), `${sc.meals[0]}/${sc.meals[1]}`, d.water || 0, d.workout && d.workout.done ? 'כן' : '', d.walk || 0, sc.sleepMins ? (sc.sleepMins / 60).toFixed(1) : '', wmap[k + id] || '']);
     }
-    S.download(`izun-yoman-${S.today()}.csv`, '﻿' + rows.map(r => r.map(cell).join(',')).join('\r\n'), 'text/csv;charset=utf-8');
-    S.toast('הקובץ ירד');
+    const csvText = '\uFEFF' + rows.map(r => r.map(cell).join(',')).join('\r\n');
+    if (S.isInstalled()) S.shareFile(`izun-yoman-${S.today()}.csv`, csvText, 'text/csv', 'יומן איזון');
+    else { S.download(`izun-yoman-${S.today()}.csv`, csvText, 'text/csv;charset=utf-8'); S.toast('הקובץ ירד'); }
   };
 
   S.act.wipeAsk = () => S.sheet(`<h2>למחוק הכול?</h2><p>הפרופילים, התפריטים, המשימות וכל ההיסטוריה יימחקו מהמכשיר הזה. אי אפשר לבטל.</p>

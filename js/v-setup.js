@@ -89,6 +89,15 @@
     if (!st) init();
     const ids = order(), id = ids[st.i];
     if (st.building) return `<div class="setup"><div class="building"><div>${S.ring(0.28, { size: 84, sw: 6, color: 'tx', cls: 'spin' })}<p id="build-msg">מחשבים יעדים</p></div></div></div>`;
+    // באייפון המידע נשמר בנפרד לדפדפן ולאפליקציה שעל מסך הבית. לכן קודם מתקינים, ורק אז ממלאים.
+    if (id === 'welcome' && !st.here && S.isIOS() && !S.isInstalled() && /^https?:$/.test(location.protocol)) return `<div class="setup"><div class="welcome">
+        <div class="mark">${['food', 'move', 'sleep', 'task'].map((c, i) => S.ring([0.8, 0.6, 0.9, 0.7][i], { size: 30, sw: 5, color: c })).join('')}</div>
+        <h1 style="font-size:40px;line-height:1.1">קודם מוסיפים למסך הבית</h1>
+        <p style="font-size:18px">באייפון, איזון שומרת את המידע שלכם רק כשפותחים אותה ממסך הבית.</p>
+        <div class="list"><div class="li li--pad"><span class="li__main"><b>1. לוחצים על כפתור השיתוף</b><small>הריבוע עם החץ, בתחתית המסך</small></span>${S.icon('share')}</div>
+          <div class="li li--pad"><span class="li__main"><b>2. בוחרים "הוספה למסך הבית"</b></span>${S.icon('plus')}</div>
+          <div class="li li--pad"><span class="li__main"><b>3. פותחים את איזון מהמסך הראשי</b><small>ושם ממלאים את השאלות</small></span>${S.icon('home')}</div></div>
+      </div><div class="setup__foot"><button class="btn btn--ghost btn--sm btn--block" data-act="setupHere">להמשיך כאן בכל זאת</button></div></div>`;
     if (id === 'welcome') return `<div class="setup"><div class="welcome">
         <div class="mark">${['food', 'move', 'sleep', 'task'].map((c, i) => S.ring([0.8, 0.6, 0.9, 0.7][i], { size: 30, sw: 5, color: c })).join('')}</div>
         <h1>איזון</h1>
@@ -155,6 +164,7 @@
     if (st.i < ids.length - 1) { st.i++; S.render(); return; }
     finish();
   };
+  S.act.setupHere = () => { st.here = true; S.render(); };
   S.act.setupBack = () => { if (st.i > 0) { read(); st.i--; S.render(); } };
   S.act.setupLive = () => { read(); S.render(true); };
   S.act.setupTheme = el => { st.d.home.theme = S.setupTheme = el.dataset.t; S.render(true); };
@@ -187,9 +197,11 @@
     r.onload = () => {
       let data = null;
       try { data = JSON.parse(String(r.result)); } catch { /* לא קובץ תקין */ }
-      if (!data || !data.people || !data.people.a || !data.days) { S.toast('זה לא קובץ גיבוי של איזון'); return; }
+      if (data && !data.days) data = null;
+      data = S.normalize(data); // משלים שדות חסרים בגיבוי ישן או חלקי
+      if (!data) { S.toast('זה לא קובץ גיבוי של איזון'); return; }
       const names = ['a', 'b'].map(x => data.people[x].name || '');
-      S.sheet(`<h2>מי במכשיר הזה?</h2><p>כך האפליקציה תדע של מי היום שמוצג ראשון.</p>
+      S.sheet(`<h2>מי במכשיר הזה?</h2><p>כך האפליקציה תדע של מי היום שמוצג ראשון.</p>${S.state ? '<p class="late" style="font-weight:600">שימו לב: כל מה שסומן במכשיר הזה יוחלף במה שבקובץ.</p>' : ''}
         <div class="btns"><button class="btn" data-act="restoreAs" data-id="a">${e(names[0])}</button><button class="btn" data-act="restoreAs" data-id="b">${e(names[1])}</button></div>`);
       S._restore = data;
     };
@@ -198,13 +210,16 @@
   };
   S.act.restoreAs = el => {
     if (!S._restore) return;
+    const prev = S.state ? JSON.stringify(S.state) : null, prevMe = S.me;
     S.state = S._restore; S._restore = null;
     S.setMe(el.dataset.id);
     S.ui.who = S.me; S.ui.both = false; S.ui.date = S.today();
     S.saveNow();
     st = null;
     S.closeSheet(true);
-    S.toast('הגיבוי שוחזר');
+    for (const x of ['a', 'b']) if (!S.P(x).blocks.length) S.P(x).blocks = S.buildBlocks(x);
+    S.saveNow();
+    S.toast('הגיבוי שוחזר', prev ? () => { S.state = JSON.parse(prev); S.setMe(prevMe); S.ui.who = S.me; S.saveNow(); S.render(); } : null);
     if (location.hash !== '#/today') location.hash = '#/today'; else S.render();
   };
 })();

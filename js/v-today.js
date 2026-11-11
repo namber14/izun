@@ -30,6 +30,7 @@
 
   function bothView(k) {
     const ids = [S.me, S.other(S.me)], isToday = k === S.today();
+    if (S.dayKind(k) === 'shabbat' && !(isToday && S.nowMin() >= S.havdala(k))) return shabbatCard(k);
     const scs = ids.map(id => S.score(k, id));
     const cards = ids.map((id, i) => {
       const sc = scs[i], nb = isToday ? S.nowBlock(k, id) : null, b = nb && (nb.cur || nb.next);
@@ -140,6 +141,13 @@
     if (!b) return;
     const live = k === S.today();
     const stamp = planned => { const n = S.nowMin(); const diff = Math.min(Math.abs(n - planned % 1440), 1440 - Math.abs(n - planned % 1440)); return m2t(live && diff <= 90 ? n : planned); };
+    if (b.k === 'sleep' && live && S.nowMin() < S.t2m(S.P(who).wake)) {
+      // אחרי חצות ולפני ההשכמה: זו השינה של הלילה הזה. נרשמת לבוקר של היום, והסימון שייך לאתמול.
+      S.day(S.addDays(k, -1), who).done[b.id] = 1;
+      d.sleep = d.sleep || {}; d.sleep.bed = m2t(S.nowMin());
+      S.buzz(10); S.save(); S.soft(); S.toast('לילה טוב. שעת השינה נרשמה.');
+      return;
+    }
     if (b.k === 'meal') d.meals[b.slot] = d.meals[b.slot] ? 0 : 1;
     else if (b.k === 'move') { if (d.workout && d.workout.done) delete d.workout; else d.workout = { done: true, mins: (S.workoutFor(k, who) || {}).mins || 0 }; }
     else {
@@ -197,20 +205,24 @@
     if ('t' in v && !v.t) { S.toast('צריך שם לעוגן'); return; }
     if (!v.s) { S.toast('צריך שעה'); return; }
     if ('d' in v && !v.d.length) { S.toast('צריך לבחור לפחות יום אחד'); return; }
-    if (id) Object.assign(p.blocks.find(x => x.id === id), v, { m: v.m || 30 });
+    S.freezePast();
+    let fixed = 0;
+    if (id) { const b = p.blocks.find(x => x.id === id); Object.assign(b, v, { m: v.m || 30 }); if (!b.u) b.e = 1; if (b.k === 'meal') fixed = S.kosherFix(); }
     else p.blocks.push(Object.assign({ id: S.uid(), k: 'other', u: 1 }, v, { m: v.m || 30 }));
-    S.save(); S.closeSheet(); S.soft(); S.toast('נשמר');
+    S.save(); S.closeSheet(); S.soft();
+    S.toast(fixed ? `נשמר. ${fixed === 1 ? 'מנה אחת הוחלפה' : fixed + ' מנות הוחלפו'} כדי לשמור על ההמתנה בין בשר לחלב.` : 'נשמר');
   };
   S.act.blkDel = el => {
     const who = S.who(), p = S.P(who), i = p.blocks.findIndex(x => x.id === el.dataset.id);
     if (i < 0) return;
+    S.freezePast();
     const [old] = p.blocks.splice(i, 1);
     S.save(); S.closeSheet(); S.soft();
     S.toast('העוגן נמחק', () => { p.blocks.splice(i, 0, old); S.save(); S.soft(); });
   };
   S.act.blkRebuild = () => {
     const who = S.who(), old = S.P(who).blocks;
-    S.rebuild(who); S.closeSheet(); S.soft();
+    S.rebuild(who, true); S.closeSheet(); S.soft();
     S.toast('סדר היום נבנה מחדש', () => { S.P(who).blocks = old; S.save(); S.soft(); });
   };
 })();

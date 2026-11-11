@@ -26,12 +26,19 @@
       take(/\sב?מוצאי שבת(?=\s)/, () => { out.due = S.dow(S.today()) === 6 ? S.today() : nextDow(6); out.tags.push('מוצאי שבת'); }) ||
       take(/\s[בל]?יום (ראשון|שני|שלישי|רביעי|חמישי|שישי)(?=\s)/, m => { out.due = nextDow(DAYWORD[m[1]]); out.tags.push('יום ' + m[1]); }) ||
       take(/\s[בל]?יום ([אבגדהו])['׳](?=\s)/, m => { out.due = nextDow(DAYWORD[m[1]]); out.tags.push('יום ' + S.DAYS[DAYWORD[m[1]]]); }) ||
-      take(/\sב?-?(\d{1,2})[./](\d{1,2})(?=\s)/, m => {
-        const now = new Date(); let d = new Date(now.getFullYear(), +m[2] - 1, +m[1]);
-        if (d.getMonth() !== +m[2] - 1) return;
-        if (S.dkey(d) < S.today()) d = new Date(now.getFullYear() + 1, +m[2] - 1, +m[1]);
-        out.due = S.dkey(d); out.tags.push(`${+m[1]}.${+m[2]}`);
-      });
+      (() => {
+        // תאריך כמו 25.11: רק אחרי "ב", או בסוף המשפט. כך "2.5 קילו" ו-"12.50" נשארים חלק מהמשימה.
+        const m = t.match(/\s(ב-?)?(\d{1,2})[./](\d{1,2})(?=\s)/);
+        if (!m) return;
+        const day = +m[2], mon = +m[3], atEnd = t.slice(m.index + m[0].length).trim() === '';
+        if (mon < 1 || mon > 12 || day < 1 || day > 31 || !(m[1] || atEnd)) return;
+        const now = new Date();
+        let d = new Date(now.getFullYear(), mon - 1, day);
+        if (d.getMonth() !== mon - 1) return;
+        if (S.dkey(d) < S.today()) d = new Date(now.getFullYear() + 1, mon - 1, day);
+        t = t.replace(m[0], ' ');
+        out.due = S.dkey(d); out.tags.push(`${day}.${mon}`);
+      })();
     }
     out.t = t.replace(/\s+/g, ' ').trim();
     return out;

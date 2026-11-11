@@ -95,7 +95,15 @@
   };
   const kosherWait = () => (S.home().kosher ? (S.home().waitHours ?? 6) * 60 : 0);
   // הפרש הזמן הקטן ביותר בין שתי ארוחות, אצל שני בני הזוג
-  const gap = (k, s1, s2) => Math.min(...['a', 'b'].map(w => S.slotTime(k, w, s2) - S.slotTime(k, w, s1)));
+  const DEF_DUR = { b: 20, s1: 10, l: 30, s2: 10, d: 30 };
+  S.slotEnd = (k, who, slot) => {
+    const kind = S.dayKind(k), start = S.slotTime(k, who, slot);
+    if (kind === 'shabbat' || (kind === 'friday' && slot === 'd')) return start + 90;
+    const w = S.dow(k), b = (S.P(who).blocks || []).find(x => x.k === 'meal' && x.slot === slot && x.d.includes(w));
+    return start + (b ? b.m : DEF_DUR[slot]);
+  };
+  // כמה זמן עובר מסוף הארוחה הראשונה עד תחילת השנייה. לוקחים את הקצר מבין שני בני הזוג.
+  const gap = (k, s1, s2) => Math.min(...['a', 'b'].map(w => S.slotTime(k, w, s2) - S.slotEnd(k, w, s1)));
 
   // ---------- תפריט שבועי ----------
   function rng(seed) { let a = seed >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -119,6 +127,7 @@
     const days = {};
     for (let i = 0; i < 7; i++) {
       const k = S.addDays(wk, i), kind = S.dayKind(k), o = {};
+      if (prev && reshuffle && k < S.today() && prev.days[k]) { days[k] = prev.days[k]; Object.values(prev.days[k]).forEach(id => used.add(id)); continue; }
       if (kind === 'shabbat') { o.l = pick('sd', ['m']); o.d = pick('s3', ['p']); }
       else if (kind === 'friday') { o.b = pick('b', ['d', 'p']); o.s1 = pick('s', ['p', 'd']); o.l = pick('d', ['p', 'd']); o.d = pick('sn', ['m']); }
       else {
@@ -146,20 +155,41 @@
   // מנות שמותר להחליף אליהן, לפי כללי בשר וחלב של אותו יום
   S.swapOptions = (k, slot) => {
     const md = S.menuDay(k), wait = kosherWait(), pool = poolOf(k, slot);
-    const slots = S.mealSlots(k);
+    const slots = S.mealSlots(k), i = slots.indexOf(slot);
     const kOf = s => (md[s] && S.dish(md[s]) ? S.dish(md[s]).k : 'p');
     return S.DISHES.filter(d => {
       if (d.s !== pool || d.id === md[slot]) return false;
       if (!wait) return true;
-      for (const s of slots) {
-        if (s === slot) continue;
-        const dt = S.slotTime(k, 'a', slot) - S.slotTime(k, 'a', s); // חיובי: s לפני המשבצת
-        const dt2 = Math.min(Math.abs(gap(k, s, slot)), Math.abs(gap(k, slot, s)));
-        if (d.k === 'd' && kOf(s) === 'm' && dt > 0 && dt2 < wait) return false;
-        if (d.k === 'm' && kOf(s) === 'd' && dt < 0 && dt2 < wait) return false;
-      }
+      if (d.k === 'd' && slots.slice(0, i).some(s => kOf(s) === 'm' && gap(k, s, slot) < wait)) return false;
+      if (d.k === 'm' && slots.slice(i + 1).some(s => kOf(s) === 'd' && gap(k, slot, s) < wait)) return false;
       return true;
     });
+  };
+  // אחרי שינוי בשעות הארוחות: עוברים על התפריט מהיום והלאה, ומחליפים מנה חלבית שנכנסה לזמן ההמתנה
+  S.kosherFix = () => {
+    const wait = kosherWait();
+    if (!wait || !S.state) return 0;
+    let n = 0;
+    const base = S.weekKey(S.today());
+    for (const wk of [base, S.addDays(base, 7)]) {
+      const m = S.state.menu[wk];
+      if (!m) continue;
+      for (const k of Object.keys(m.days)) {
+        if (k < S.today()) continue;
+        const md = m.days[k], slots = S.mealSlots(k);
+        for (let j = 1; j < slots.length; j++) {
+          const cur = md[slots[j]] && S.dish(md[slots[j]]);
+          if (!cur || cur.k !== 'd') continue;
+          if (!slots.slice(0, j).some(s => md[s] && S.dish(md[s]) && S.dish(md[s]).k === 'm' && gap(k, s, slots[j]) < wait)) continue;
+          const ok = S.swapOptions(k, slots[j]);
+          const parve = ok.filter(x => x.k === 'p' && !Object.values(md).includes(x.id));
+          const pick = parve.length ? parve : ok.filter(x => x.k !== 'd');
+          if (pick.length) { md[slots[j]] = pick[(n + j) % pick.length].id; n++; }
+        }
+      }
+    }
+    if (n) S.save();
+    return n;
   };
   S.setDish = (k, slot, id) => { S.menuDay(k); S.state.menu[S.weekKey(k)].days[k][slot] = id; S.save(); };
 
@@ -304,7 +334,14 @@
     const W = t2m(p.wake), B = [];
     const WD = [0, 1, 2, 3, 4], FRI = [5], ALL = keeps ? [0, 1, 2, 3, 4, 5] : [0, 1, 2, 3, 4, 5, 6];
     const EVE = keeps ? [0, 1, 2, 3, 4, 6] : [0, 1, 2, 3, 4, 5, 6];
-    const add = (t, k, s, m, d, x) => { if (d.length) B.push(Object.assign({ id: S.uid() + B.length, t, k, s: m2t(s), m, d }, x || {})); };
+    // מזהה קבוע לכל עוגן בנוי, כדי שסימונים של ימים קודמים יישארו מחוברים גם אחרי בנייה מחדש
+    const seen = {};
+    const add = (t, k, s, m, d, x) => {
+      if (!d.length) return;
+      let id = k + (x && x.slot ? '-' + x.slot : '') + (d.length === 1 && d[0] === 5 ? '-f' : '');
+      if (seen[id]) id += '-' + (++seen[id]); else seen[id] = 1;
+      B.push(Object.assign({ id, t, k, s: m2t(s), m, d }, x || {}));
+    };
     const fitDays = (p.fit.days || []).filter(d => ALL.includes(d));
     const fm = +p.fit.minutes || 25, when = p.fit.when || 'evening';
     add('השכמה', 'wake', W, 10, keeps ? [0, 1, 2, 3, 4, 5] : ALL);
@@ -317,7 +354,7 @@
     if (work) add('עבודה', 'work', t2m(p.work.from), Math.max(60, t2m(p.work.to) - t2m(p.work.from)), WD);
     add('ביניים', 'meal', clamp(bf + 170, 600, 660), 10, ALL, { slot: 's1' });
     const lunch = bf > 570 ? 810 : 780;
-    if (when === 'noon') add('אימון', 'move', lunch - fm - 10, fm, fitDays.filter(d => d !== 5));
+    if (when === 'noon') add('אימון', 'move', lunch - fm - 10, fm, keeps ? fitDays.filter(d => d !== 5) : fitDays);
     add('ארוחת צהריים', 'meal', lunch, 30, keeps ? WD : ALL, { slot: 'l' });
     if (keeps) {
       add('הכנות לשבת', 'home', Math.max(bf + 60, 570), 120, FRI);
@@ -332,7 +369,7 @@
     let dinner = 19 * 60;
     if (when === 'evening') {
       const ws = Math.max(workEnd + 30, 17 * 60 + 30);
-      add('אימון', 'move', ws, fm, fitDays.filter(d => d !== 5));
+      add('אימון', 'move', ws, fm, keeps ? fitDays.filter(d => d !== 5) : fitDays);
       dinner = Math.max(dinner, ws + fm + 20);
     }
     dinner = Math.min(dinner, wind - 120);
@@ -391,10 +428,16 @@
     const start = t.due || S.dkey(new Date(t.c));
     if (t.rep) {
       if (k < start) return false;
-      if (S.dayKind(k) === 'shabbat') return false;
-      if (t.rep === 'd') return true;
-      if (t.rep === 'w') return S.dow(k) === S.dow(start);
-      if (t.rep === 'm') return S.kdate(k).getDate() === S.kdate(start).getDate();
+      const shab = S.dayKind(k) === 'shabbat';
+      if (t.rep === 'd') return !shab;
+      if (t.rep === 'w') return S.dow(k) === S.dow(start); // שבועית של מוצאי שבת מופיעה אחרי צאת השבת
+      if (t.rep === 'm') {
+        // בחודש קצר: היום האחרון. נפל על שבת: עובר ליום ראשון.
+        const hit = x => { const d = S.kdate(x), last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(); return d.getDate() === Math.min(S.kdate(start).getDate(), last); };
+        if (shab) return false;
+        const y = S.addDays(k, -1);
+        return hit(k) || (S.keepsShabbat() && S.dow(k) === 0 && y >= start && hit(y));
+      }
     }
     if (!t.due) return false;
     if (t.done) return t.done === k;
@@ -412,7 +455,7 @@
   S.sleepMins = sl => (sl && sl.bed && sl.wake ? ((t2m(sl.wake) - t2m(sl.bed)) % 1440 + 1440) % 1440 : 0);
 
   // ---------- ציון היום ----------
-  S.score = (k, who) => {
+  const scoreLive = (k, who) => {
     const d = S.peek(k, who), kind = S.dayKind(k), p = S.P(who), T = S.targets(who);
     const out = { shabbat: kind === 'shabbat' };
     // אוכל: ארוחות לפי התוכנית, ומים
@@ -448,6 +491,19 @@
     return out;
   };
 
+  // ציון של יום שעבר נשמר ברשומה שלו, כדי ששינוי בתוכנית היום לא ישנה את העבר
+  S.score = (k, who) => {
+    const rec = S.state.days[k] && S.state.days[k][who];
+    if (k < S.today() && rec) { if (!rec.sc) { rec.sc = scoreLive(k, who); S.save(); } return rec.sc; }
+    return scoreLive(k, who);
+  };
+  // לפני כל שינוי בתוכנית: מקבעים את הציונים של שלושת השבועות האחרונים
+  S.freezePast = () => {
+    if (!S.state) return;
+    const t = S.today();
+    for (let i = 1; i <= 21; i++) { const k = S.addDays(t, -i); for (const w of ['a', 'b']) if (S.state.days[k] && S.state.days[k][w]) S.score(k, w); }
+  };
+
   // רצף ימים מעל 60 אחוז (שבת לא שוברת רצף)
   S.streak = who => {
     let k = S.today(), n = 0;
@@ -475,8 +531,18 @@
     people: { a: S.newPerson('m', ''), b: S.newPerson('f', '') },
     days: {}, menu: {}, shop: {}, tasks: [], weights: [], reviews: {}
   });
-  // בנייה מחדש שומרת על עוגנים שנוספו ביד
-  S.rebuild = who => { const p = S.P(who); p.blocks = S.buildBlocks(who).concat((p.blocks || []).filter(b => b.u)); S.save(); };
+  // בנייה מחדש שומרת על עוגנים שנוספו ביד, ועל שעות שנערכו ביד (אלא אם hard)
+  S.rebuild = (who, hard) => {
+    S.freezePast();
+    const p = S.P(who), old = p.blocks || [];
+    const fresh = S.buildBlocks(who).map(b => {
+      const o = !hard && old.find(x => x.id === b.id && x.e);
+      return o ? Object.assign(b, { s: o.s, m: o.m, e: 1 }, b.k === 'move' ? {} : { d: o.d }) : b;
+    });
+    p.blocks = fresh.concat(old.filter(b => b.u));
+    S.kosherFix();
+    S.save();
+  };
   S.logWeight = (who, kg, k) => {
     k = k || S.today();
     const ws = S.state.weights;

@@ -37,8 +37,10 @@
 
     if (k === S.today() && !S.isShabbatNow()) {
       const now = S.nowMin(), wind = (bed - 40 + 1440) % 1440;
-      let left = (wind - now + 1440) % 1440;
-      const late = left > 16 * 60; // כבר אחרי שעת ההתארגנות
+      const left = (wind - now + 1440) % 1440;
+      // "הגיע הזמן" רק בין שעת ההתארגנות לבין שעתיים לפני ההשכמה, לא בבוקר
+      const span = (t2m(p.wake) - wind + 1440) % 1440, into = (now - wind + 1440) % 1440;
+      const late = into < span - 120;
       html += `<section class="card card--tint" style="--rc:var(--sleep)"><div class="now__k" style="color:var(--sleep)">הלילה</div>
         <div class="now__t">לישון עד <span class="ltr num">${m2t(bed)}</span></div>
         <div class="now__s">${late ? 'הגיע הזמן להתארגן לשינה.' : `מתחילים להתארגן ב-<span class="ltr num">${m2t(wind)}</span>, בעוד ${S.dur(left)}.`}</div>
@@ -108,6 +110,7 @@
   S.act.sleepGoalSave = () => {
     const who = S.who(), p = S.P(who), v = S.readFields(document.getElementById('sg-form'), G);
     if (!v.wake || !v.sleepHours) { S.toast('חסר ערך'); return; }
+    S.freezePast();
     p.wake = v.wake; p.sleepHours = v.sleepHours;
     S.syncSleepBlocks(who);
     S.save(); S.closeSheet(); S.soft(); S.toast('היעד עודכן');

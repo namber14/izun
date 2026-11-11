@@ -55,7 +55,7 @@
       ${wk === cur ? line('רצף', (s) => { const id = ids[st.indexOf(s)]; const n = S.streak(id); return n ? `${n} ימים` : '·'; }) : ''}</div>`;
 
     const rv = S.state.reviews[wk] || {};
-    const q = (id, label, ph) => `<div class="f"><label for="rv-${id}">${label}</label><textarea id="rv-${id}" data-change="reviewSave" data-wk="${wk}" data-f="${id}" placeholder="${ph}">${e(rv[id] || '')}</textarea></div>`;
+    const q = (id, label, ph) => `<div class="f"><label for="rv-${id}">${label}</label><textarea id="rv-${id}" data-change="reviewSave" data-input="reviewDraft" data-wk="${wk}" data-f="${id}" placeholder="${ph}">${e(rv[id] || '')}</textarea></div>`;
     const nav = `<button class="ibtn" data-act="weekShift" data-d="-7" aria-label="שבוע קודם">${S.icon('prev')}</button><button class="ibtn" data-act="weekShift" data-d="7" aria-label="שבוע הבא" ${wk >= cur ? 'disabled style="opacity:.3"' : ''}>${S.icon('next')}</button>`;
     return `${S.hdr(wk === cur ? 'השבוע' : 'שבוע קודם', `${S.shortDate(wk)} עד ${S.shortDate(S.addDays(wk, 6))}`, nav)}
       <section class="card"><div class="wk">${head}${rows}</div><p class="note" style="padding:12px 0 0">כל עיגול הוא ציון היום. לוחצים כדי לפתוח את היום.</p></section>
@@ -67,5 +67,7 @@
 
   S.act.weekShift = el => { const cur = S.weekKey(S.today()); const n = S.addDays(S.ui.week || cur, +el.dataset.d); if (n > cur) return; S.ui.week = n === cur ? null : n; S.soft(); };
   S.act.weekDay = el => { S.ui.date = el.dataset.k; S.ui.who = el.dataset.id; S.ui.both = false; S.go('#/today'); };
+  // נשמר תוך כדי הקלדה, כדי שמעבר לאפליקציה אחרת לא ימחק את מה שנכתב
+  S.act.reviewDraft = el => { const r = S.state.reviews[el.dataset.wk] || (S.state.reviews[el.dataset.wk] = {}); r[el.dataset.f] = el.value; S.save(); };
   S.act.reviewSave = el => { const r = S.state.reviews[el.dataset.wk] || (S.state.reviews[el.dataset.wk] = {}); r[el.dataset.f] = el.value.trim(); S.save(); S.toast('נשמר'); };
 })();

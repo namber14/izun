@@ -73,7 +73,7 @@
     d.meals[s] = d.meals[s] ? 0 : 1;
     S.buzz(10); S.save(); S.soft();
   };
-  S.act.weekMeal = el => { S.ui.date = el.dataset.k; S.act.meal(el); };
+  S.act.weekMeal = el => S.act.meal(el);
   S.act.reshuffle = el => {
     const wk = el.dataset.wk, old = JSON.stringify(S.state.menu[wk]);
     S.genWeek(wk, true); S.soft();
@@ -81,9 +81,9 @@
   };
 
   // ---------- גיליון ארוחה ----------
-  let mealView = 'me';
+  let mealView = 'me', mealK = null; // היום שהגיליון מציג. לא משנה את היום הפעיל במסכים.
   function mealSheet(slot) {
-    const k = S.ui.date, who = S.who(), other = S.other(who);
+    const k = mealK, who = S.who(), other = S.other(who);
     const mine = S.mealPlan(k, who).meals.find(m => m.slot === slot);
     if (!mine) return;
     const theirs = S.mealPlan(k, other).meals.find(m => m.slot === slot);
@@ -106,15 +106,15 @@
       <button class="btn btn--ghost btn--block" data-act="swapList" data-slot="${slot}">${S.icon('swap')}להחליף מנה</button>`;
     S.sheet(html);
   }
-  S.act.meal = el => { mealView = 'me'; mealSheet(el.dataset.slot); };
+  S.act.meal = el => { mealView = 'me'; mealK = el.dataset.k || S.ui.date; mealSheet(el.dataset.slot); };
   S.act.mealView = el => { mealView = el.dataset.v; mealSheet(el.dataset.slot); };
   S.act.eatSheet = el => {
-    const d = S.day(S.ui.date, S.who()), s = el.dataset.slot, v = +el.dataset.v;
+    const d = S.day(mealK, S.who()), s = el.dataset.slot, v = +el.dataset.v;
     d.meals[s] = d.meals[s] === v ? 0 : v;
     S.buzz(10); S.save(); S.closeSheet(); S.soft();
   };
   S.act.swapList = el => {
-    const k = S.ui.date, slot = el.dataset.slot, who = S.who(), T = S.targets(who);
+    const k = mealK, slot = el.dataset.slot, who = S.who(), T = S.targets(who);
     const opts = S.swapOptions(k, slot);
     const cur = S.dish(S.menuDay(k)[slot]);
     S.sheet(`<h2>במקום ${e(cur ? cur.n : '')}</h2><p>${S.home().kosher ? 'מוצגות רק מנות שמתאימות לבשר ולחלב של אותו יום. ' : ''}ההחלפה חלה על שניכם.</p>
@@ -122,7 +122,7 @@
     void T;
   };
   S.act.swapTo = el => {
-    const k = S.ui.date, slot = el.dataset.slot, old = S.menuDay(k)[slot];
+    const k = mealK, slot = el.dataset.slot, old = S.menuDay(k)[slot];
     S.setDish(k, slot, el.dataset.id);
     S.soft(); mealView = 'me'; mealSheet(slot);
     S.toast('המנה הוחלפה', () => { S.setDish(k, slot, old); S.closeSheet(); S.soft(); });

@@ -71,7 +71,7 @@ small { font-size: 13px; color: var(--mut); }
 
 /* ---------- כרטיסים ---------- */
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 18px; }
-.card--tint { background: color-mix(in srgb, var(--rc, var(--tx)) 9%, var(--card)); border-color: color-mix(in srgb, var(--rc, var(--tx)) 22%, var(--line)); }
+.card--tint { background: var(--card2); background: color-mix(in srgb, var(--rc, var(--tx)) 9%, var(--card)); border-color: var(--line); border-color: color-mix(in srgb, var(--rc, var(--tx)) 22%, var(--line)); }
 .card__h { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
 .card__h h3 { font-size: 17px; font-weight: 700; }
 .card__h a, .card__h button { color: var(--mut); font-size: 14px; font-weight: 500; min-height: 32px; display: inline-flex; align-items: center; gap: 4px; }
@@ -93,11 +93,11 @@ small { font-size: 13px; color: var(--mut); }
 .ring { position: relative; display: inline-grid; place-items: center; flex: none; }
 .ring svg { display: block; }
 .ring circle { fill: none; }
-.ring__bg { stroke: color-mix(in srgb, var(--rc) 18%, transparent); }
+.ring__bg { stroke: var(--line); stroke: color-mix(in srgb, var(--rc) 18%, transparent); }
 .ring__fg { stroke: var(--rc); stroke-linecap: round; transition: stroke-dashoffset .8s cubic-bezier(.2, .8, .2, 1); }
 .ring__in { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--rc); }
 .ring__in .i { width: 20px; height: 20px; }
-.bar { display: block; height: 6px; border-radius: 6px; background: color-mix(in srgb, var(--rc) 18%, transparent); overflow: hidden; }
+.bar { display: block; height: 6px; border-radius: 6px; background: var(--card2); background: color-mix(in srgb, var(--rc) 18%, transparent); overflow: hidden; }
 .bar i { display: block; height: 100%; border-radius: 6px; background: var(--rc); transition: width .6s cubic-bezier(.2, .8, .2, 1); }
 
 /* כרטיס הציון הראשי */
@@ -150,7 +150,7 @@ small { font-size: 13px; color: var(--mut); }
 
 /* עיגול סימון */
 .chk { width: 44px; height: 44px; display: grid; place-items: center; flex: none; --rc: var(--mut); }
-.chk i { width: 26px; height: 26px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--rc) 55%, transparent); display: grid; place-items: center; transition: background .2s, border-color .2s, transform .18s cubic-bezier(.3, 1.6, .5, 1); }
+.chk i { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--line); border: 2px solid color-mix(in srgb, var(--rc) 55%, transparent); display: grid; place-items: center; transition: background .2s, border-color .2s, transform .18s cubic-bezier(.3, 1.6, .5, 1); }
 .chk .i { width: 16px; height: 16px; stroke-width: 3; color: var(--bg); opacity: 0; transition: opacity .15s; }
 .chk:active i { transform: scale(.82); }
 .chk.on i { background: var(--rc); border-color: var(--rc); }
@@ -158,7 +158,7 @@ small { font-size: 13px; color: var(--mut); }
 
 /* ---------- מים ---------- */
 .cups { display: grid; grid-template-columns: repeat(var(--n, 10), 1fr); }
-.cup { height: 44px; display: grid; place-items: center; color: color-mix(in srgb, var(--sleep) 30%, transparent); transition: color .2s, transform .15s cubic-bezier(.3, 1.6, .5, 1); }
+.cup { height: 44px; display: grid; place-items: center; color: var(--mut); color: color-mix(in srgb, var(--sleep) 30%, transparent); transition: color .2s, transform .15s cubic-bezier(.3, 1.6, .5, 1); }
 .cup .i { width: 26px; height: 26px; }
 .cup.on { color: #5BB8F5; }
 .cup.on .i { fill: currentColor; }
@@ -173,9 +173,9 @@ small { font-size: 13px; color: var(--mut); }
 .meal__m { font-size: 13px; color: var(--mut); }
 .meal.eaten .meal__n { color: var(--mut); }
 .tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: var(--card2); color: var(--mut); letter-spacing: .02em; }
-.tag[data-k="m"] { color: #E8836C; background: color-mix(in srgb, #E8836C 14%, transparent); }
-.tag[data-k="d"] { color: #6FB3EA; background: color-mix(in srgb, #6FB3EA 14%, transparent); }
-.tag[data-k="p"] { color: var(--food); background: color-mix(in srgb, var(--food) 13%, transparent); }
+.tag[data-k="m"] { color: #E8836C; background: var(--card2); background: color-mix(in srgb, #E8836C 14%, transparent); }
+.tag[data-k="d"] { color: #6FB3EA; background: var(--card2); background: color-mix(in srgb, #6FB3EA 14%, transparent); }
+.tag[data-k="p"] { color: var(--food); background: var(--card2); background: color-mix(in srgb, var(--food) 13%, transparent); }
 .ings { list-style: none; margin: 0; padding: 0; }
 .ings li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 16px; }
 .ings li:last-child { border-bottom: 0; }
@@ -195,7 +195,7 @@ small { font-size: 13px; color: var(--mut); }
 .btn--pri { background: var(--pri); color: var(--on-pri); border-color: transparent; }
 .btn--tint { background: var(--rc); color: #0B0C10; border-color: transparent; }
 .btn--ghost { background: none; }
-.btn--dan { background: none; color: var(--dan); border-color: color-mix(in srgb, var(--dan) 40%, transparent); }
+.btn--dan { background: none; color: var(--dan); border-color: var(--line); border-color: color-mix(in srgb, var(--dan) 40%, transparent); }
 .btn--sm { min-height: 44px; padding: 0 16px; font-size: 15px; border-radius: 13px; font-weight: 600; }
 .btn--block { width: 100%; }
 .btn[disabled] { opacity: .4; pointer-events: none; }
@@ -231,7 +231,7 @@ small { font-size: 13px; color: var(--mut); }
 .quick input::placeholder { color: var(--dim); }
 .quick .ibtn { background: var(--pri); color: var(--on-pri); border: 0; }
 .parse { display: flex; gap: 6px; flex-wrap: wrap; min-height: 0; padding: 0 4px; }
-.parse span { font-size: 13px; font-weight: 600; padding: 3px 10px; border-radius: 20px; background: color-mix(in srgb, var(--task) 16%, transparent); color: var(--task); }
+.parse span { font-size: 13px; font-weight: 600; padding: 3px 10px; border-radius: 20px; background: var(--card2); background: color-mix(in srgb, var(--task) 16%, transparent); color: var(--task); }
 
 /* ---------- גיליון תחתון ---------- */
 .sheet-wrap { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-end; justify-content: center; }
@@ -366,7 +366,7 @@ small { font-size: 13px; color: var(--mut); }
 
 /* ---------- מחשב ---------- */
 @media (min-width: 560px) {
-  #app { border-inline: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 60%, transparent); }
+  #app { border-inline: 1px solid var(--line); background: var(--card2); background: color-mix(in srgb, var(--bg) 60%, transparent); }
   .sheet { border-radius: 28px; margin-bottom: 24px; border-bottom: 1px solid var(--line); }
 }
 @media (hover: hover) {

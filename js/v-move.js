@@ -101,7 +101,7 @@
     if (!v || v < 30) { S.toast('המשקל לא נראה נכון'); return; }
     const who = S.who(), before = S.targets(who).kcal;
     if (!S.state.weights.some(x => x.who === who)) S.state.weights.push({ who, k: S.dkey(new Date(S.state.createdAt)), kg: S.P(who).weight });
-    S.logWeight(who, Math.round(v * 10) / 10, S.ui.date);
+    S.logWeight(who, Math.round(v * 10) / 10, S.ui.date > S.today() ? S.today() : S.ui.date); // לא רושמים שקילה לעתיד
     const after = S.targets(who).kcal;
     S.closeSheet(); S.soft();
     S.toast(after !== before ? 'נשמר. התפריט עודכן לפי המשקל החדש.' : 'השקילה נשמרה');
@@ -121,6 +121,7 @@
   S.act.fitSave = () => {
     const who = S.who(), p = S.P(who), v = S.readFields(document.getElementById('fit-form'), S._fitFields);
     const lvl = p.fit.level, place = p.fit.place;
+    S.freezePast();
     const err = S.applyPerson(p, v);
     if (err) { S.toast(err); return; }
     p.walkGoal = Math.max(0, v.walkGoal || 0);
@@ -227,7 +228,7 @@
       const a = b.dataset.p;
       S.buzz(10);
       if (a === 'close') close();
-      else if (a === 'quit') { if (phase === 'done') { close(); return; } before = phase; if (running) { remain = Math.max(1, Math.ceil((endAt - Date.now()) / 1000)); stop(); } phase = 'quit'; draw(); }
+      else if (a === 'quit') { if (phase === 'done') { close(); return; } if (phase === 'quit') return; before = phase; if (running) { remain = Math.max(1, Math.ceil((endAt - Date.now()) / 1000)); stop(); } phase = 'quit'; draw(); }
       else if (a === 'resume') { phase = before; if (phase === 'rest' || (steps[i].it.secs && remain && remain < steps[i].it.secs)) run(remain || 1); draw(); }
       else if (a === 'markQuit') finish();
       else if (a === 'skip') advance();

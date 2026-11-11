@@ -57,8 +57,8 @@
   S.state = null;
   S.me = 'a';
   S.load = () => {
-    try { S.state = JSON.parse(localStorage.getItem(KEY)); } catch { S.state = null; }
-    if (S.state && !S.state.people) S.state = null;
+    try { S.state = S.normalize(JSON.parse(localStorage.getItem(KEY))); } catch { S.state = null; }
+    if (S.state) for (const x of ['a', 'b']) if (!S.state.people[x].blocks.length) S.state.people[x].blocks = S.buildBlocks(x);
     S.me = localStorage.getItem(ME) === 'b' ? 'b' : 'a';
   };
   let saveT = null;
@@ -70,6 +70,32 @@
   };
   S.save = () => { if (!saveT) saveT = setTimeout(flush, 80); };
   S.saveNow = () => { clearTimeout(saveT); flush(); };
+  // משלים שדות חסרים במצב שנטען או שוחזר (גיבוי ישן או חלקי), כדי ששום מסך לא יקרוס עליו
+  S.normalize = st => {
+    if (!st || typeof st !== 'object' || !st.people || !st.people.a || !st.people.b) return null;
+    const base = S.newState();
+    st.home = Object.assign({}, base.home, st.home || {});
+    for (const x of ['a', 'b']) {
+      const p = st.people[x], d = S.newPerson(p.sex === 'f' ? 'f' : 'm', '');
+      st.people[x] = Object.assign({}, d, p, { work: Object.assign({}, d.work, p.work || {}), fit: Object.assign({}, d.fit, p.fit || {}), blocks: Array.isArray(p.blocks) ? p.blocks.filter(b => b && b.id && b.s && Array.isArray(b.d)) : [] });
+      if (!Array.isArray(st.people[x].fit.days)) st.people[x].fit.days = d.fit.days;
+    }
+    for (const key of ['days', 'menu', 'shop', 'reviews']) if (!st[key] || typeof st[key] !== 'object' || Array.isArray(st[key])) st[key] = {};
+    for (const key of ['tasks', 'weights']) if (!Array.isArray(st[key])) st[key] = [];
+    for (const k of Object.keys(st.days)) {
+      if (!st.days[k] || typeof st.days[k] !== 'object') { delete st.days[k]; continue; }
+      for (const w of Object.keys(st.days[k])) {
+        const r = st.days[k][w];
+        if (!r || typeof r !== 'object') { delete st.days[k][w]; continue; }
+        r.done = r.done || {}; r.meals = r.meals || {}; r.water = r.water || 0;
+      }
+    }
+    for (const wk of Object.keys(st.menu)) if (!st.menu[wk] || !st.menu[wk].days) delete st.menu[wk];
+    for (const wk of Object.keys(st.shop)) { const s = st.shop[wk] || (st.shop[wk] = {}); s.got = s.got || {}; s.extra = Array.isArray(s.extra) ? s.extra : []; }
+    st.tasks = st.tasks.filter(t => t && t.id && typeof t.t === 'string');
+    st.weights = st.weights.filter(w => w && w.k && w.who && w.kg > 0);
+    return st;
+  };
   S.setMe = id => { S.me = id; try { localStorage.setItem(ME, id); } catch { /* ריק */ } };
   S.wipe = () => { clearTimeout(saveT); saveT = null; S.state = null; try { localStorage.removeItem(KEY); } catch { /* ריק */ } };
   window.addEventListener('pagehide', () => { if (saveT) { clearTimeout(saveT); flush(); } });
@@ -79,7 +105,12 @@
   S.home = () => S.state.home;
   // רשומת היום של אדם. day() יוצר אותה, peek() רק קורא.
   const EMPTY = Object.freeze({ done: Object.freeze({}), meals: Object.freeze({}), water: 0 });
-  S.day = (k, who) => { const d = S.state.days[k] || (S.state.days[k] = {}); return d[who] || (d[who] = { done: {}, meals: {}, water: 0 }); };
+  S.day = (k, who) => {
+    const d = S.state.days[k] || (S.state.days[k] = {});
+    const r = d[who] || (d[who] = { done: {}, meals: {}, water: 0 });
+    if (r.sc) delete r.sc; // נוגעים ביום שעבר: הציון השמור שלו יחושב מחדש
+    return r;
+  };
   S.peek = (k, who) => (S.state.days[k] && S.state.days[k][who]) || EMPTY;
 
   // ---------- שבת (זמנים משוערים לפי חישוב שקיעה) ----------
@@ -92,7 +123,7 @@
     tzfat: ['צפת', 32.964, 35.496, 22], netivot: ['נתיבות', 31.42, 34.588, 22], rehovot: ['רחובות', 31.894, 34.811, 22]
   };
   // שקיעה בדקות מחצות, לפי השעון של המכשיר
-  S.sunset = k => {
+  S.sunset = (k, deg) => {
     const c = S.CITIES[(S.state && S.state.home.city) || 'jerusalem'] || S.CITIES.jerusalem;
     const rad = Math.PI / 180, d = S.kdate(k);
     const jd = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 12) / 864e5 + 2440587.5;
@@ -103,7 +134,7 @@
     const L = (M + C + 180 + 102.9372) % 360;
     const jt = 2451545.0 + js + 0.0053 * Math.sin(M * rad) - 0.0069 * Math.sin(2 * L * rad);
     const dec = Math.asin(Math.sin(L * rad) * Math.sin(23.44 * rad));
-    const w = Math.acos((Math.sin(-0.833 * rad) - Math.sin(c[1] * rad) * Math.sin(dec)) / (Math.cos(c[1] * rad) * Math.cos(dec))) / rad;
+    const w = Math.acos((Math.sin(-(deg || 0.833) * rad) - Math.sin(c[1] * rad) * Math.sin(dec)) / (Math.cos(c[1] * rad) * Math.cos(dec))) / rad;
     const t = new Date((jt + w / 360 - 2440587.5) * 864e5);
     // תמיד לפי שעון ישראל, גם אם המכשיר מוגדר לאזור זמן אחר
     try {
@@ -117,7 +148,8 @@
   S.keepsShabbat = () => Boolean(S.state && S.state.home.shabbat);
   // מעגלים לחמש דקות לצד הבטוח: כניסה מוקדם יותר, יציאה מאוחר יותר
   S.candles = k => { const h = S.state.home; const c = S.CITIES[h.city] || S.CITIES.jerusalem; return Math.floor((S.sunset(k) - (h.candleMin ?? c[3])) / 5) * 5; };
-  S.havdala = k => Math.ceil((S.sunset(k) + (S.state.home.havdalaMin ?? 40)) / 5) * 5;
+  // צאת השבת: כשהשמש 8.5 מעלות מתחת לאופק (שלושה כוכבים), אלא אם הוגדר מספר דקות קבוע
+  S.havdala = k => { const m = S.state.home.havdalaMin; return Math.ceil((m != null ? S.sunset(k) + m : S.sunset(k, 8.5)) / 5) * 5; };
   // סוג היום: week רגיל, friday ערב שבת, shabbat שבת, rest יום חופשי (למי שלא שומר)
   S.dayKind = k => {
     const w = S.dow(k);
@@ -304,6 +336,17 @@
     document.body.append(a);
     a.click();
     a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
   };
+  // באפליקציה שמותקנת על מסך הבית הורדה רגילה לא תמיד עובדת, ולכן קודם מנסים לשתף את הקובץ
+  S.shareFile = (name, text, type, title) => {
+    try {
+      const file = new File([text], name, { type });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { navigator.share({ files: [file], title: title || name }).catch(() => {}); return 'share'; }
+    } catch { /* אין שיתוף קבצים */ }
+    S.download(name, text, type + ';charset=utf-8');
+    return 'download';
+  };
+  S.isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  S.isInstalled = () => Boolean(navigator.standalone) || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
 })();

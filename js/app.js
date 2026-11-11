@@ -75,16 +75,19 @@
   // ימי השבוע כצ׳יפים לבחירת יום
   S.dayChips = () => {
     const wk = S.weekKey(S.ui.date), t = S.today();
-    return `<div class="chips">${Array.from({ length: 7 }, (_, i) => { const k = S.addDays(wk, i); return `<button class="chip ${k === S.ui.date ? 'on' : ''}" data-act="pickday" data-k="${k}">${k === t ? 'היום' : S.DAYS1[i]} <em class="num">${S.kdate(k).getDate()}</em></button>`; }).join('')}</div>`;
+    const away = wk !== S.weekKey(t);
+    return `<div class="chips">${away ? `<button class="chip on" data-act="gotoday">חזרה להיום</button>` : ''}${Array.from({ length: 7 }, (_, i) => { const k = S.addDays(wk, i); return `<button class="chip ${k === S.ui.date ? 'on' : ''}" data-act="pickday" data-k="${k}">${k === t ? 'היום' : S.DAYS1[i]} <em class="num">${S.kdate(k).getDate()}</em></button>`; }).join('')}</div>`;
   };
   S.act.pickday = el => { S.ui.date = el.dataset.k; S.soft(); };
   S.act.shiftday = el => { S.ui.date = S.addDays(S.ui.date, +el.dataset.d); S.soft(); };
-  S.act.gotoday = () => { S.ui.date = S.today(); S.soft(); };
+  S.act.gotoday = () => { S.ui.date = S.today(); S.ui.week = null; S.soft(); };
   S.act.nav = el => S.go(el.dataset.to);
   S.act.closeSheet = () => S.closeSheet();
 
   // ---------- אירועים ----------
   document.addEventListener('click', e => {
+    const tab = e.target.closest('.tabbar a[data-t="today"]');
+    if (tab && S.state && S.route()[0] === 'today' && S.ui.date !== S.today()) { e.preventDefault(); S.ui.date = S.today(); S.soft(); return; }
     const el = e.target.closest('[data-act]');
     if (!el) return;
     const fn = S.act[el.dataset.act];
@@ -104,7 +107,8 @@
 
   S.start = () => {
     S.load();
-    if (S.state) { S.ui.who = S.me; S.ui.date = S.today(); }
+    if (S.state) { S.ui.who = S.me; S.ui.date = S.today(); S.freezePast(); }
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch { /* ריק */ }
     S.render();
     // הדקה מתחלפת: מעדכנים את "עכשיו", רק כשלא באמצע פעולה
     setInterval(() => {
@@ -114,10 +118,15 @@
       if (a && /INPUT|TEXTAREA|SELECT/.test(a.tagName)) return;
       if (S.route()[0] === 'today') S.soft();
     }, 60000);
-    let lastDay = S.today();
+    let lastDay = S.today(), hiddenAt = 0;
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden || !S.state) return;
-      if (S.today() !== lastDay) { lastDay = S.today(); S.ui.date = lastDay; }
+      if (document.hidden) { hiddenAt = Date.now(); if (S.state) S.saveNow(); return; }
+      if (!S.state) return;
+      const a = document.activeElement;
+      if (a && /INPUT|TEXTAREA|SELECT/.test(a.tagName)) return; // לא מוחקים טקסט שבאמצע הקלדה
+      // יום חדש, או חזרה אחרי יותר מעשרים דקות: חוזרים להיום
+      if (S.today() !== lastDay) { lastDay = S.today(); S.ui.date = lastDay; S.freezePast(); }
+      else if (hiddenAt && Date.now() - hiddenAt > 20 * 60000) S.ui.date = lastDay;
       if (!document.querySelector('.sheet-wrap, .player')) S.soft();
     });
     if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
