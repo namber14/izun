@@ -30,8 +30,10 @@
         <button class="btn btn--block" data-act="ics">${S.icon('bell')}להוסיף ליומן שלי</button>
         <p class="note" style="padding:0">אם משנים שעות, מוחקים ביומן את האירועים הישנים ומוסיפים שוב.</p></section>
 
-      <div class="sec">גיבוי והעברה</div>
-      <section class="card stack"><p>קובץ הגיבוי הוא גם הדרך להעביר את התוכנית לטלפון השני: שומרים כאן, שולחים בוואטסאפ, ופותחים שם.</p>
+      ${syncCard()}
+
+      <div class="sec">גיבוי</div>
+      <section class="card stack"><p>קובץ אחד עם כל המידע. כדאי לשמור מדי פעם, למקרה שהטלפון מתחלף.</p>
         <div class="btns"><button class="btn btn--sm" data-act="backup">${S.icon('share')}שמירת גיבוי</button><label class="btn btn--sm">שחזור<input type="file" accept=".json,application/json" data-change="restoreFile" hidden></label></div>
         <button class="btn btn--sm btn--ghost btn--block" data-act="csv">ייצוא היומן לאקסל</button></section>
 
@@ -40,6 +42,74 @@
 
       <p class="note">איזון נותנת הערכות כלליות לאנשים בריאים. היא לא מחליפה רופא או דיאטנית. במצב רפואי, בהריון או בהנקה כדאי להתייעץ לפני שמשנים תזונה ואימונים.</p>
       <button class="btn btn--dan btn--block" data-act="wipeAsk">מחיקת כל הנתונים</button>`;
+  };
+
+  // ---------- הטלפון השני: עדכון חי ----------
+  function syncCard() {
+    const sy = S.sync, head = '<div class="sec">הטלפון השני</div>';
+    if (!sy || !sy.available()) return `${head}<section class="card"><p class="muted">עדכון חי בין שני הטלפונים עובד כשפותחים את איזון מהכתובת שלה באינטרנט.</p></section>`;
+    if (!sy.on()) return `${head}<section class="card stack"><p>כל סימון, משימה ופריט ברשימת הקניות יופיעו גם בטלפון השני, תוך שניות.</p>
+      <p class="note" style="padding:0">המידע ננעל בטלפון עם קוד משפחתי לפני שהוא יוצא. בענן נשמר רק עותק נעול, שאי אפשר לקרוא בלי הקוד.</p>
+      <button class="btn btn--pri btn--block" data-act="syncOn">להפעיל עדכון חי</button>
+      <button class="btn btn--ghost btn--sm btn--block" data-act="joinAsk">יש לי כבר קוד משפחתי</button></section>`;
+    const st = sy.info().status;
+    const line = st === 'offline' ? 'אין חיבור כרגע. ימשיך לבד כשהחיבור יחזור.' : st === 'error' ? 'הענן לא ענה. מנסה שוב לבד.' : 'פעיל. כל שינוי עובר לטלפון השני תוך שניות.';
+    return `${head}<section class="card stack"><p><b>${line}</b></p>
+      <div class="f"><span class="lab">הקוד המשפחתי</span><div class="code ltr">${e(sy.code())}</div></div>
+      <div class="btns"><button class="btn btn--sm" data-act="syncShare">${S.icon('share')}שליחה</button><button class="btn btn--sm" data-act="syncCopy">העתקה</button></div>
+      <p class="note" style="padding:0">מי שמחזיק את הקוד רואה את כל המידע. שולחים אותו רק לבן או לבת הזוג.</p>
+      <button class="btn btn--ghost btn--sm btn--block" data-act="syncOffAsk">לנתק</button></section>`;
+  }
+  const inviteText = () => `איזון, התוכנית שלנו.\n\n1. פותחים: ${location.origin}${location.pathname.replace(/index\.html$/, '')}\n2. מוסיפים למסך הבית, ופותחים משם.\n3. לוחצים "כבר התחלנו במכשיר אחר" ומדביקים את הקוד:\n\n${S.sync.code()}`;
+  S.act.syncOn = async el => {
+    el.disabled = true; el.textContent = 'מפעיל';
+    try { await S.sync.enable(); } catch { S.toast('לא הצלחנו להפעיל. בודקים חיבור ומנסים שוב.'); S.soft(); return; }
+    S.soft();
+    if (S.sync.info().status !== 'ok') { S.toast('הופעל, אבל הענן עוד לא ענה. ינסה שוב לבד.'); return; }
+    S.sheet(`<h2>העדכון החי פועל</h2><p>עכשיו מחברים את הטלפון השני. שולחים אליו את ההודעה, והיא מסבירה מה לעשות.</p>
+      <div class="code ltr">${e(S.sync.code())}</div>
+      <button class="btn btn--pri btn--block" data-act="syncShare">${S.icon('share')}לשלוח לטלפון השני</button>
+      <button class="btn btn--ghost btn--sm btn--block" data-act="closeSheet">אחר כך</button>`);
+  };
+  S.act.syncShare = () => {
+    const text = inviteText();
+    if (navigator.share) navigator.share({ text }).catch(() => {});
+    else window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener');
+  };
+  S.act.syncCopy = () => {
+    const done = () => S.toast('הקוד הועתק');
+    try { navigator.clipboard.writeText(S.sync.code()).then(done, () => S.toast('לא הצלחנו להעתיק. אפשר לסמן את הקוד ביד.')); } catch { S.toast('אפשר לסמן את הקוד ביד.'); }
+  };
+  S.act.syncOffAsk = () => S.sheet(`<h2>לנתק את העדכון החי?</h2><p>המידע שבמכשיר הזה נשאר. הוא רק מפסיק להתעדכן מול הטלפון השני.</p>
+    <button class="btn btn--block" data-act="syncOff">לנתק רק את המכשיר הזה</button>
+    <button class="btn btn--dan btn--block" data-act="syncDrop">לנתק ולמחוק את העותק מהענן</button>
+    <p class="note" style="padding:0">מחיקה מהענן מנתקת גם את הטלפון השני. המידע נשאר בשני הטלפונים.</p>
+    <button class="btn btn--ghost btn--sm btn--block" data-act="closeSheet">להשאיר מחובר</button>`);
+  S.act.syncOff = () => { S.sync.disconnect(); S.closeSheet(); S.soft(); S.toast('המכשיר נותק'); };
+  S.act.syncDrop = async () => { S.closeSheet(); try { await S.sync.dropCloud(); S.toast('נותק, והעותק בענן נמחק'); } catch { S.toast('המכשיר נותק, אבל המחיקה מהענן לא הצליחה. אפשר לנסות שוב כשיש חיבור.'); } S.soft(); };
+
+  // התחברות לבית קיים עם קוד משפחתי (מההגדרות, או ממסך הפתיחה במכשיר חדש)
+  S.act.joinAsk = () => S.sheet(`<h2>להתחבר עם קוד משפחתי</h2><p>הקוד נמצא בטלפון הראשון: הגדרות, "הטלפון השני".</p>
+    ${S.state ? '<p class="late" style="font-weight:600">שימו לב: המידע שבמכשיר הזה יוחלף במה שבענן.</p>' : ''}
+    <div class="f"><label for="join-code">הקוד</label><input id="join-code" type="text" dir="ltr" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="XXXXX-XXXXX-XXXXX-XXXXX" style="text-align:center;letter-spacing:.04em"></div>
+    <button class="btn btn--pri btn--block" data-act="joinGo">להתחבר</button>`);
+  S.act.joinGo = async el => {
+    const code = (document.getElementById('join-code') || {}).value || '';
+    el.disabled = true; el.textContent = 'מתחבר';
+    try { S._join = await S.sync.fetchHome(code); }
+    catch (err) { el.disabled = false; el.textContent = 'להתחבר'; S.toast(/[\u0590-\u05FF]/.test(err.message || '') ? err.message : 'לא הצלחנו להתחבר. בודקים חיבור ומנסים שוב.'); return; }
+    const st = S._join.st;
+    S.sheet(`<h2>מי במכשיר הזה?</h2><p>כך האפליקציה תדע של מי היום שמוצג ראשון.</p>
+      <div class="btns"><button class="btn" data-act="joinAs" data-id="a">${e(st.people.a.name)}</button><button class="btn" data-act="joinAs" data-id="b">${e(st.people.b.name)}</button></div>`);
+  };
+  S.act.joinAs = el => {
+    if (!S._join) return;
+    S.sync.adopt(S._join); S._join = null;
+    S.setMe(el.dataset.id);
+    S.ui.who = S.me; S.ui.both = false; S.ui.date = S.today();
+    S.closeSheet(true);
+    S.toast('מחובר. מעכשיו שני הטלפונים מתעדכנים יחד.');
+    if (S.route()[0] !== 'today') location.hash = '#/today'; else S.render();
   };
 
   S.act.setMe = el => { S.setMe(el.dataset.id); S.ui.who = S.me; S.ui.both = false; S.soft(); S.toast(`המכשיר של ${S.name(S.me)}`); };
@@ -150,7 +220,7 @@
     else { S.download(`izun-yoman-${S.today()}.csv`, csvText, 'text/csv;charset=utf-8'); S.toast('הקובץ ירד'); }
   };
 
-  S.act.wipeAsk = () => S.sheet(`<h2>למחוק הכול?</h2><p>הפרופילים, התפריטים, המשימות וכל ההיסטוריה יימחקו מהמכשיר הזה. אי אפשר לבטל.</p>
+  S.act.wipeAsk = () => S.sheet(`<h2>למחוק הכול?</h2><p>הפרופילים, התפריטים, המשימות וכל ההיסטוריה יימחקו מהמכשיר הזה. אי אפשר לבטל.</p>${S.sync && S.sync.on() ? '<p class="note" style="padding:0">המחיקה היא מהמכשיר הזה בלבד. הטלפון השני והעותק בענן נשארים.</p>' : ''}
     <button class="btn btn--block" data-act="backup">קודם לשמור גיבוי</button>
     <div class="btns"><button class="btn btn--pri" data-act="closeSheet">להשאיר</button><button class="btn btn--dan" data-act="wipe">למחוק</button></div>`);
   S.act.wipe = () => { S.closeSheet(true); S.wipe(); location.hash = ''; S.render(); };

@@ -381,3 +381,6 @@ small { font-size: 13px; color: var(--mut); }
 .cmp > b { font-size: 14px; font-weight: 700; text-align: center; }
 .cmp > span { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--mut); font-weight: 600; }
 .cmp > div { display: flex; flex-direction: column; gap: 5px; text-align: center; font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 0; }
+
+/* הקוד המשפחתי */
+.code { font-size: 19px; font-weight: 600; letter-spacing: .05em; font-variant-numeric: tabular-nums; background: var(--card2); border: 1px solid var(--line); border-radius: 14px; padding: 14px 10px; text-align: center; display: block; user-select: all; -webkit-user-select: all; overflow-wrap: anywhere; }

@@ -104,7 +104,7 @@
         <p><b>סדר יום, אוכל, תנועה ושינה.</b><br>תוכנית אחת, לשניכם.</p>
       </div>
       <div class="setup__foot"><button class="btn btn--pri btn--block" data-act="setupNext">מתחילים</button>
-        <label class="btn btn--ghost btn--sm btn--block">כבר התחלנו במכשיר אחר<input type="file" accept=".json,application/json" data-change="restoreFile" hidden></label>
+        <button class="btn btn--ghost btn--sm btn--block" data-act="otherDevice">כבר התחלנו במכשיר אחר</button>
         <p class="note" style="text-align:center">שלוש דקות של שאלות, ומכאן הכול נבנה לבד.</p></div></div>`;
     const [title, lead] = titleOf(id);
     let body = '';
@@ -165,6 +165,9 @@
     finish();
   };
   S.act.setupHere = () => { st.here = true; S.render(); };
+  S.act.otherDevice = () => S.sheet(`<h2>כבר התחלנו במכשיר אחר</h2><p>שתי דרכים להביא לכאן את התוכנית.</p>
+    ${S.sync && S.sync.available() ? `<button class="btn btn--pri btn--block" data-act="joinAsk">יש לי קוד משפחתי</button><p class="note" style="padding:0">הקוד נמצא בטלפון הראשון: הגדרות, "הטלפון השני". מכאן שני הטלפונים מתעדכנים יחד.</p>` : ''}
+    <label class="btn btn--block">יש לי קובץ גיבוי<input type="file" accept=".json,application/json" data-change="restoreFile" hidden></label>`);
   S.act.setupBack = () => { if (st.i > 0) { read(); st.i--; S.render(); } };
   S.act.setupLive = () => { read(); S.render(true); };
   S.act.setupTheme = el => { st.d.home.theme = S.setupTheme = el.dataset.t; S.render(true); };

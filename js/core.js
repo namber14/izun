@@ -62,11 +62,13 @@
     S.me = localStorage.getItem(ME) === 'b' ? 'b' : 'a';
   };
   let saveT = null;
+  S.writeLocal = () => { try { localStorage.setItem(KEY, JSON.stringify(S.state)); return true; } catch { return false; } };
   const flush = () => {
     saveT = null;
     if (!S.state) return;
     S.state.updatedAt = Date.now();
-    try { localStorage.setItem(KEY, JSON.stringify(S.state)); } catch { S.toast('אין מקום לשמור. כדאי לגבות ולנקות נתונים ישנים.'); }
+    if (!S.writeLocal()) S.toast('אין מקום לשמור. כדאי לגבות ולנקות נתונים ישנים.');
+    if (S.sync) S.sync.track(); // מה שהשתנה יוצא לטלפון השני
   };
   S.save = () => { if (!saveT) saveT = setTimeout(flush, 80); };
   S.saveNow = () => { clearTimeout(saveT); flush(); };
@@ -97,7 +99,7 @@
     return st;
   };
   S.setMe = id => { S.me = id; try { localStorage.setItem(ME, id); } catch { /* ריק */ } };
-  S.wipe = () => { clearTimeout(saveT); saveT = null; S.state = null; try { localStorage.removeItem(KEY); } catch { /* ריק */ } };
+  S.wipe = () => { clearTimeout(saveT); saveT = null; if (S.sync) S.sync.disconnect(); S.state = null; try { localStorage.removeItem(KEY); } catch { /* ריק */ } };
   window.addEventListener('pagehide', () => { if (saveT) { clearTimeout(saveT); flush(); } });
 
   S.P = id => S.state.people[id];
@@ -243,6 +245,7 @@
       if (closed) return;
       closed = true; sheetClose = null;
       if (o.onClose) o.onClose();
+      if (S.sync && S.sync.pendingRender) { S.sync.pendingRender = false; setTimeout(() => { if (S.state && !document.querySelector('.sheet-wrap.on, .player')) S.soft(); }, 30); } // עדכון שהגיע מהטלפון השני בזמן שהגיליון היה פתוח
       if (now) { wrap.remove(); return; }
       wrap.classList.remove('on');
       sheet.style.transform = '';

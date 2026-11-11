@@ -144,6 +144,7 @@
       days[k] = o;
     }
     S.state.menu[wk] = { n, days };
+    if (!prev && S.sync) S.sync.markAuto('m|' + wk); // תפריט שנוצר לבד לא ידרוס תפריט שנערך בטלפון השני
     S.save();
     return S.state.menu[wk];
   };

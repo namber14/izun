@@ -140,12 +140,12 @@
     const data = { t: v.t, who: v.who, due: v.due || null, rep: v.rep || null, star: v.star };
     if (data.rep && !data.due) data.due = S.today();
     if (isNew) S.state.tasks.push(Object.assign({ id: S.uid(), done: null, c: Date.now() }, data));
-    else Object.assign(t, data);
+    else Object.assign(find(t.id) || t, data);
     S.save(); S.closeSheet(); S.soft();
   };
   S.act.taskDel = () => {
-    const { t } = S._task, i = S.state.tasks.indexOf(t);
-    if (i < 0) return;
+    const t = find(S._task.t.id), i = S.state.tasks.indexOf(t);
+    if (i < 0) { S.closeSheet(); return; }
     S.state.tasks.splice(i, 1);
     S.save(); S.closeSheet(); S.soft();
     S.toast('המשימה נמחקה', () => { S.state.tasks.splice(i, 0, t); S.save(); S.soft(); });

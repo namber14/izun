@@ -108,6 +108,7 @@
   S.start = () => {
     S.load();
     if (S.state) { S.ui.who = S.me; S.ui.date = S.today(); S.freezePast(); }
+    if (S.sync) S.sync.start();
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch { /* ריק */ }
     S.render();
     // הדקה מתחלפת: מעדכנים את "עכשיו", רק כשלא באמצע פעולה

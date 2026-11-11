@@ -1,8 +1,8 @@
 // איזון · שומר את קבצי האפליקציה בטלפון, כדי שתיפתח מיד וגם בלי קליטה.
 // הנתונים עצמם נשמרים במכשיר ולא עוברים דרך כאן.
-const CACHE = 'izun-v1';
+const CACHE = 'izun-v2';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'css/app.css', 'fonts/heebo-vf-hebrew.woff2', 'fonts/heebo-vf-latin.woff2', 'icons/icon.svg', 'icons/icon-192.png',
-  'js/core.js', 'js/data-food.js', 'js/data-fit.js', 'js/plan.js', 'js/app.js', 'js/v-setup.js', 'js/v-today.js', 'js/v-food.js', 'js/v-move.js', 'js/v-sleep.js', 'js/v-tasks.js', 'js/v-week.js', 'js/v-settings.js'];
+  'js/core.js', 'js/data-food.js', 'js/data-fit.js', 'js/plan.js', 'js/config.js', 'js/sync.js', 'js/app.js', 'js/v-setup.js', 'js/v-today.js', 'js/v-food.js', 'js/v-move.js', 'js/v-sleep.js', 'js/v-tasks.js', 'js/v-week.js', 'js/v-settings.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
